@@ -12,6 +12,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
     let verticalPipeGap = 150.0
     
     var bird:SKSpriteNode!
+    var scoreboard:SKSpriteNode!
     var skyColor:SKColor!
     var pipeTextureUp:SKTexture!
     var pipeTextureDown:SKTexture!
@@ -20,6 +21,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
     var pipes:SKNode!
     var canRestart = Bool()
     var scoreLabelNode:SKLabelNode!
+    var restartLabelNode:SKLabelNode!
+    var shareLabelNode:SKLabelNode!
     var score = NSInteger()
     
     let birdCategory: UInt32 = 1 << 0
@@ -43,6 +46,33 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
         self.addChild(moving)
         pipes = SKNode()
         moving.addChild(pipes)
+        
+        
+        //setup kill screen
+        scoreboard = SKSpriteNode(imageNamed: "scoreboard")
+        
+        scoreboard.zPosition = 101
+        scoreboard.position = CGPoint( x: self.frame.midX, y: 3 * self.frame.size.height / 4 )
+        scoreboard.hidden = true
+        
+        self.addChild(scoreboard)
+        
+        restartLabelNode = SKLabelNode(fontNamed:"MarkerFelt-Wide")
+        restartLabelNode.fontColor = .blackColor()
+        restartLabelNode.position = CGPoint( x: self.frame.midX, y: self.frame.midY + 90)
+        restartLabelNode.zPosition = 101
+        restartLabelNode.text = "Restart"
+        restartLabelNode.hidden = true
+        self.addChild(restartLabelNode)
+        
+        
+        shareLabelNode = SKLabelNode(fontNamed:"MarkerFelt-Wide")
+        shareLabelNode.fontColor = .blackColor()
+        shareLabelNode.position = CGPoint( x: self.frame.midX, y: self.frame.midY + 30)
+        shareLabelNode.zPosition = 101
+        shareLabelNode.text = "Share Achievement"
+        shareLabelNode.hidden = true
+        self.addChild(shareLabelNode)
         
         // ground
         let groundTexture = SKTexture(imageNamed: "land")
@@ -122,7 +152,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
         self.addChild(bird)
         
         // create the ground
-        var ground = SKNode()
+        let ground = SKNode()
         ground.position = CGPoint(x: 0, y: groundTexture.size().height)
         ground.physicsBody = SKPhysicsBody(rectangleOfSize: CGSize(width: self.frame.size.width, height: groundTexture.size().height * 2.0))
         ground.physicsBody?.dynamic = false
@@ -168,7 +198,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
         pipeUp.physicsBody?.contactTestBitMask = birdCategory
         pipePair.addChild(pipeUp)
         
-        var contactNode = SKNode()
+        let contactNode = SKNode()
         contactNode.position = CGPoint( x: pipeDown.size.width + bird.size.width / 2, y: self.frame.midY )
         contactNode.physicsBody = SKPhysicsBody(rectangleOfSize: CGSize( width: pipeUp.size.width, height: self.frame.size.height ))
         contactNode.physicsBody?.dynamic = false
@@ -206,14 +236,39 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
         /* Called when a touch begins */
         if moving.speed > 0  {
             for touch: AnyObject in touches {
-                let location = touch.locationInNode(self)
-                
+                _ = touch.locationInNode(self)
+ 
                 bird.physicsBody?.velocity = CGVector(dx: 0, dy: 0)
                 bird.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 30))
                 
             }
-        } else if canRestart {
-            self.resetScene()
+        } else if canRestart == true {
+            for touch: AnyObject in touches {
+                let location = touch.locationInNode(self)
+                
+                if self.nodeAtPoint(location) == restartLabelNode {
+                    self.shareLabelNode.hidden = true
+                    self.restartLabelNode.hidden = true
+                    self.scoreboard.hidden = true
+                    
+                    
+                    
+                    scoreLabelNode.position = CGPoint( x: self.frame.midX, y: 3 * self.frame.size.height / 4 )
+                    scoreLabelNode.zPosition = 100
+                    
+                    self.resetScene()
+                }
+                if self.nodeAtPoint(location) == shareLabelNode {
+                    let snapshotImage:UIImage = snapshot(self.view!)
+                    let objectsToShare = [snapshotImage]
+                    let activityVC = UIActivityViewController(activityItems: objectsToShare, applicationActivities: nil)
+                    
+                    activityVC.popoverPresentationController?.sourceView = self.view
+                    self.view?.window?.rootViewController?.presentViewController(activityVC, animated: true, completion: nil)
+                }
+
+            }
+
         }
     }
     
@@ -238,14 +293,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
         if moving.speed > 0 {
             if ( contact.bodyA.categoryBitMask & scoreCategory ) == scoreCategory || ( contact.bodyB.categoryBitMask & scoreCategory ) == scoreCategory {
                 // Bird has contact with score entity
-                score++
+                score += 1
                 scoreLabelNode.text = String(score)
                 
                 // Add a little visual feedback for the score increment
                 scoreLabelNode.runAction(SKAction.sequence([SKAction.scaleTo(1.5, duration:NSTimeInterval(0.1)), SKAction.scaleTo(1.0, duration:NSTimeInterval(0.1))]))
             } else {
                 
+                
+                
                 moving.speed = 0
+                
                 
                 bird.physicsBody?.collisionBitMask = worldCategory
                 bird.runAction(  SKAction.rotateByAngle(CGFloat(M_PI) * CGFloat(bird.position.y) * 0.01, duration:1), completion:{self.bird.speed = 0 })
@@ -260,7 +318,35 @@ class GameScene: SKScene, SKPhysicsContactDelegate{
                         }), SKAction.waitForDuration(NSTimeInterval(0.05))]), count:4), SKAction.runBlock({
                             self.canRestart = true
                             })]), withKey: "flash")
+                
+                showScoreboard()
             }
         }
     }
+    
+    func showScoreboard() {
+        
+        //print("Game Over")
+        self.shareLabelNode.hidden = false
+        self.restartLabelNode.hidden = false
+        self.scoreboard.hidden = false
+        
+        scoreLabelNode.position = CGPoint( x: self.scoreboard.frame.midX + 75, y: self.scoreboard.frame.midY + 12)
+        scoreLabelNode.zPosition = 102
+ 
+    }
+    
+    
+    func snapshot(view: SKView) -> UIImage {
+        
+        UIGraphicsBeginImageContextWithOptions(view.bounds.size, false, 0);
+        view.drawViewHierarchyInRect(view.bounds, afterScreenUpdates: true)
+        let image:UIImage = UIGraphicsGetImageFromCurrentImageContext();
+        
+        UIGraphicsEndImageContext();
+        
+        
+        return image;
+    }
+
 }
